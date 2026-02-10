@@ -150,8 +150,8 @@ class SessionStartTime(benchmark.BenchmarkBase):
         for child in self.children:
             child.terminate()
             child.wait()
-        self.children = list()
 
+        self.children = list()
         return {
             'session_start_time': t1 - t0,
         }

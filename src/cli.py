@@ -59,9 +59,11 @@ def run_benchmarks(config=dict(), suite=dict()):
     if 'search_paths' in suite:
         paths.extend(suite['search_paths'])
 
-        all_benchmarks = discover_benchmarks(paths)
-
+    all_benchmarks = discover_benchmarks(paths)
     config['search_paths'] = [str(x) for x in paths]
+    if 'runs' not in config:
+        config['runs'] = 10
+
     if 'benchmarks' in suite:
         benchmarks = list()
         # Check if it exists in all_benchmarks
