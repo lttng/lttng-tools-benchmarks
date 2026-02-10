@@ -10,72 +10,137 @@ import pkgutil
 import platform
 import sys
 
+import yaml
+
 import benchmark
 
-
-def run_benchmarks(search_dirs):
-    # Step 1: Load from search dirs and then transform into a set of benchmarks to run
-    benchmarks = set()
+def discover_benchmarks(search_dirs):
+    benchmarks = list()
     for finder, name, is_pkg in pkgutil.iter_modules(search_dirs):
         try:
             sys.path.insert(0, finder.path)
             mod = importlib.import_module(name)
             for k, v in mod.__dict__.items():
                 if isinstance(v, type):
-                    logging.info("{}: {}".format(k, v))
-                    benchmarks.add(v)
+                    logging.info(
+                        "Found benchmark {}.{}".format(mod.__name__, v.__name__)
+                    )
+                    benchmarks.append(
+                        {
+                            "name": "{}.{}".format(mod.__name__, v.__name__),
+                            "cls": v,
+                            "config": dict(),
+                            "parameters": list(),
+                        }
+                    )
             sys.path = sys.path[1:]
         except Exception as e:
             logging.error("Failed to import module {}: {}".format(name, e))
 
-    # @TODO: Filter benchmarks
-    # @TODO: How many times should each be run.
-    results = dict()
-    for benchmark in benchmarks:
-        results[benchmark.__name__] = run_benchmark(benchmark)
+    return benchmarks
 
-    print(json.dumps(results))
+def find_benchmark_by_name(all_benchmarks, name):
+    options = list()
+    for x in all_benchmarks:
+        if x['name'] == name or (name.find('.') == -1 and x['name'].rfind(".{}".format(name)) != -1):
+            options.append(x)
 
+    if len(options) > 2:
+        raise Exception("Multiple ({}) matches for benchmark by name '{}'".format(len(options), name))
 
-def run_benchmark(cls):
-    benchmark = cls()
-    metrics = cls.metrics()
-    metadata = get_generic_metadata() | cls.metadata()
-    config = {
-        "runs": 10,
-    }
-    run_results = list()
-    # @TODO: params & config
-    benchmark.setup()
-    for i in range(0, config["runs"]):
-        logging.info("Running {} iter {}".format(cls, i + 1))
-        benchmark.pre_run()
-        run_results.append(benchmark.run())
-        benchmark.post_run()
+    if len(options) == 0:
+        raise Exception("No match for benchmark by name '{}'".format(name))
 
-    benchmark.teardown()
-    flat_result = dict()
-    for result in run_results:
-        for k, v in result.items():
-            if k not in metrics:
-                logging.warning(
-                    "{} iter {} returned a metric '{}' not described by metrics classback".format(
-                        cls, iter, k
-                    )
-                )
+    return options[0]['cls']
 
-            if k not in flat_result:
-                flat_result[k] = list()
+def run_benchmarks(config=dict(), suite=dict()):
+    # Step 1: Load from search dirs and then transform into a set of benchmarks to run
+    paths = config['search_paths']
+    if 'search_paths' in suite:
+        paths.extend(suite['search_paths'])
 
-            flat_result[k].append(v)
+        all_benchmarks = discover_benchmarks(paths)
 
-    return {
-        "version": cls.version,
-        "metrics": metrics,
-        "metadata": metadata,
-        "data": flat_result,
+    config['search_paths'] = [str(x) for x in paths]
+    if 'benchmarks' in suite:
+        benchmarks = list()
+        # Check if it exists in all_benchmarks
+        for x in suite['benchmarks']:
+            try:
+                benchmark = {
+                    'cls': find_benchmark_by_name(all_benchmarks, x['name']),
+                    'config': config | x.get('config', dict()),
+                    'parameters': x.get('parameters', list()),
+                }
+                benchmark['name'] = "{}.{}".format(benchmark['cls'].__module__, benchmark['cls'].__name__)
+                benchmarks.append(benchmark)
+            except Exception as e:
+                logging.warning("Error finding benchmark by name '{}': {}".format(x.get('name', "<no name>"), str(e)))
+    else:
+        benchmarks = all_benchmarks
+
+    results = {
         "config": config,
+        "metadata": get_generic_metadata(),
+        "results": list(),
     }
+    for benchmark in benchmarks:
+        result = run_benchmark(benchmark["cls"], config | benchmark.get('config', dict()), benchmark.get('parameters', list()))
+        if type(result) is list:
+            # A benchmark that performed more than one parameter set may return a list
+            results["results"].extend(result)
+        else:
+            results["results"].append(result)
+
+    return results
+
+
+def run_benchmark(cls, config=dict(), parameter_sets=list()):
+    metrics = cls.metrics()
+    metadata = cls.metadata()
+    all_results = list()
+    if len(parameter_sets) == 0:
+        parameter_sets.append(dict())
+
+    for parameter_set in parameter_sets:
+        run_results = list()
+        benchmark = cls()
+        benchmark.setup()
+        for i in range(0, config["runs"]):
+            logging.info("Running {} iter {}".format(cls, i + 1))
+            benchmark.pre_run()
+            try:
+                run_results.append(benchmark.run(**parameter_set))
+            except Exception as e:
+                logging.warning("Exception while runnning benchmark '{}' iter {}: {}".format(cls, iter, str(e)))
+            benchmark.post_run()
+
+        benchmark.teardown()
+        flat_result = dict()
+        for result in run_results:
+            for k, v in result.items():
+                if k not in metrics:
+                    logging.warning(
+                        "{} iter {} returned a metric '{}' not described by metrics classback".format(
+                            cls, iter, k
+                        )
+                    )
+
+                if k not in flat_result:
+                    flat_result[k] = list()
+
+                flat_result[k].append(v)
+
+        all_results.append({
+            "name": "{}.{}".format(cls.__module__, cls.__name__),
+            "version": cls.version,
+            "metrics": metrics,
+            "metadata": metadata,
+            "parameters": parameter_set,
+            "data": flat_result,
+            "config": config,
+        })
+    return all_results
 
 
 def get_generic_metadata():
@@ -129,6 +194,78 @@ def get_os_release():
     return data
 
 
+def _get_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        dest="log_level",
+        action="store_const",
+        const=logging.ERROR,
+        help="Reduce verbosity to errors only",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="log_level",
+        action="store_const",
+        const=logging.DEBUG,
+        help="Increase verbosity",
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=pathlib.Path,
+        help="The path to YAML or JSON file configuration file",
+    )
+    parser.add_argument(
+        "--benchmarks",
+        type=pathlib.Path,
+        help="The path to a YAML or JSON file describing which benchmarks should be executed",
+    )
+    parser.add_argument(
+        "--search-path",
+        type=pathlib.Path,
+        action="append",
+        help="The paths to search for benchmarks. May be specified multiple times",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=pathlib.Path,
+        help="The output path for the results"
+    )
+
+    parser.set_defaults(
+        log_level=logging.INFO, search_path=[pathlib.Path("benchmarks").absolute()]
+    )
+    return parser
+
+def _load_file(path):
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        with open(path, 'r') as f:
+            return yaml.safe_load(f.read())
+
 if __name__ == "__main__":
     logging.basicConfig()
-    sys.exit(run_benchmarks([pathlib.Path("benchmarks").absolute()]))
+    parser = _get_parser()
+    args = parser.parse_args()
+    logging.getLogger().setLevel(args.log_level)
+
+    config = dict()
+    suite = dict()
+    if args.config:
+        config = _load_file(args.config)
+
+    if args.benchmarks:
+        suite = _load_file(args.benchmarks)
+
+    config['search_paths'] = args.search_path
+    results = run_benchmarks(config, suite)
+    if args.output:
+        with open(args.output, 'w') as f:
+            json.dump(results, f)
+    else:
+        print(json.dumps(results))

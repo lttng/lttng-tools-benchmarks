@@ -1,0 +1,18 @@
+---
+search_paths:
+  - /path/to/x
+  - relative_to_cwd/x
+
+benchmarks:
+  - name: setup.FirstCommand
+    config:
+      runs: 3
+  - name: SessionSetupTime
+    config:
+      runs: 5
+    parameters:
+      - session_file: data/session.lttng
+      - session_file: data/session2.lttng
+  - name: Fake
+    config:
+      runs: 0
