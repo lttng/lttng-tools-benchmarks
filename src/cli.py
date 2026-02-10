@@ -104,12 +104,13 @@ def run_benchmark(cls, config=dict(), parameter_sets=list()):
     if len(parameter_sets) == 0:
         parameter_sets = cls.default_parameter_sets()
 
-    for parameter_set in parameter_sets:
+    for index, parameter_set in enumerate(parameter_sets):
+        logging.info("Starting parameter set {}/{}".format(index+1, len(parameter_sets)))
         run_results = list()
         benchmark = cls()
         benchmark.setup()
         for i in range(0, config["runs"]):
-            logging.info("Running {} iter {}".format(cls, i + 1))
+            logging.info("Running {} iter {}/{}".format(cls, i + 1, config['runs']))
             benchmark.pre_run()
             try:
                 run_results.append(benchmark.run(**parameter_set))
