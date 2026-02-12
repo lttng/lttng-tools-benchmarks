@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml (>=6.0.3,<7.0.0)",
-    "tailleur @ git+https://github.com/kienanstewart/tailleur.git"
+    "tailleur @ git+https://github.com/efficios/tailleur.git"
 ]
 
 [dependency-groups]
