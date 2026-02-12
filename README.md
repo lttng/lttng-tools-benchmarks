@@ -6,6 +6,6 @@ Blackbox benchmarks for LTTng-tools
 
 From source:
 
-    git clone https://github.com/kienanstewart/lttng-tools-benchmarks.git && cd lttng-tools-benchmarks
+    git clone https://github.com/lttng/lttng-tools-benchmarks.git && cd lttng-tools-benchmarks
     poetry install
     poetry run tailleur
