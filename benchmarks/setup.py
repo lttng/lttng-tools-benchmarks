@@ -8,7 +8,6 @@ import sys
 import tempfile
 import time
 
-sys.path.insert(0, pathlib.Path(__file__).parents[1] / "src")
 import tailleur
 
 
