@@ -9,11 +9,9 @@ license = {text = "GPL-2.0-only"}
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "pyyaml (>=6.0.3,<7.0.0)"
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "tailleur @ git+https://github.com/kienanstewart/tailleur.git"
 ]
-
-[project.scripts]
-cli = "lttng-tools-benchmarks.benchmark"
 
 [dependency-groups]
 dev = [
@@ -31,3 +29,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.isort]
 profile = "black"
+
+[tool.poetry]
+package-mode = false

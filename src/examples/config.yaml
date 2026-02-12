@@ -1,5 +1,0 @@
----
-runs: 2
-search_paths:
-  - benchmarks/
-  - /fake

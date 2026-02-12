@@ -9,10 +9,10 @@ import tempfile
 import time
 
 sys.path.insert(0, pathlib.Path(__file__).parents[1] / "src")
-import benchmark
+import tailleur
 
 
-class FirstCommand(benchmark.BenchmarkBase):
+class FirstCommand(tailleur.BenchmarkBase):
 
     version = 1
 
@@ -54,7 +54,7 @@ class FirstCommand(benchmark.BenchmarkBase):
         }
 
 
-class SessionSetupTime(benchmark.BenchmarkBase):
+class SessionSetupTime(tailleur.BenchmarkBase):
     version = 1
 
     def __init__(self):
@@ -110,7 +110,7 @@ class SessionSetupTime(benchmark.BenchmarkBase):
         }
 
 
-class SessionStartTime(benchmark.BenchmarkBase):
+class SessionStartTime(tailleur.BenchmarkBase):
     version = 1
 
     def __init__(self):
