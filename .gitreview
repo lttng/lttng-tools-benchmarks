@@ -1,0 +1,8 @@
+[gerrit]
+host=review.lttng.org
+port=29418
+project=lttng-tools-benchmarks.git
+defaultbranch=main
+defaultremote=review
+defaultrebase=0
+
